@@ -1,99 +1,77 @@
 package main
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
-	"time"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
-type entry struct {
-	Name string `json:"name"`
+// UIComponent defines the structure of a UI component
+type UIComponent struct {
+	Type       string                 `json:"type"`       // Component type (e.g., "button", "text", "image")
+	Properties map[string]interface{} `json:"properties"` // Component properties (e.g., "text": "Click me")
+	Children   []UIComponent          `json:"children"`   // Nested components
 }
 
-var db *sql.DB
-
-// Handler to insert an entry
-func insertHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
+// HomeHandler generates a UI layout dynamically
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+	// Define the UI structure
+	ui := UIComponent{
+		Type: "container",
+		Properties: map[string]interface{}{
+			"direction": "vertical",
+			"padding":   16,
+		},
+		Children: []UIComponent{
+			{
+				Type: "text",
+				Properties: map[string]interface{}{
+					"text":  "Welcome to Server-Driven UI",
+					"style": "header",
+				},
+			},
+			{
+				Type: "button",
+				Properties: map[string]interface{}{
+					"text":    "Click Me",
+					"onClick": "/api/click", // API to handle button click
+				},
+			},
+			{
+				Type: "image",
+				Properties: map[string]interface{}{
+					"src":    "https://example.com/image.jpg",
+					"alt":    "Example Image",
+					"height": 200,
+				},
+			},
+		},
 	}
 
-	var e entry
-	err := json.NewDecoder(r.Body).Decode(&e)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	query := "INSERT INTO name(name) VALUES (?)"
-	ctx, cancelfunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelfunc()
-
-	stmt, err := db.PrepareContext(ctx, query)
-	if err != nil {
-		http.Error(w, "Error preparing SQL statement", http.StatusInternalServerError)
-		log.Printf("Error %s when preparing SQL statement", err)
-		return
-	}
-	defer stmt.Close()
-
-	_, err = stmt.ExecContext(ctx, e.Name)
-	if err != nil {
-		http.Error(w, "Error inserting entry", http.StatusInternalServerError)
-		log.Printf("Error %s when inserting row into name table", err)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Inserted row successfully."))
-}
-
-// Handler to count entries
-func countHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
-	}
-
-	query := "SELECT COUNT(*) FROM name"
-	var count int
-	err := db.QueryRow(query).Scan(&count)
-	if err != nil {
-		http.Error(w, "Error counting entries", http.StatusInternalServerError)
-		log.Printf("Error %s when counting rows", err)
-		return
-	}
-
+	// Respond with JSON
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]int{"count": count})
+	if err := json.NewEncoder(w).Encode(ui); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// ClickHandler handles button click action
+func ClickHandler(w http.ResponseWriter, r *http.Request) {
+	response := map[string]string{
+		"message": "Button clicked!",
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func main() {
-	var err error
-	db, err = sql.Open("mysql", "root:Str0ng!Passw0rd@tcp(0.0.0.0:3306)/nameapi")
-	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
-	}
-	defer db.Close()
+	// Set up routes
+	http.HandleFunc("/", HomeHandler)
+	http.HandleFunc("/api/click", ClickHandler)
 
-	err = db.Ping()
-	if err != nil {
-		log.Fatalf("Error pinging database: %v", err)
-	}
-
-	http.HandleFunc("/insert", insertHandler)
-	http.HandleFunc("/count", countHandler)
-
-	fmt.Println("Server is running on port 8080...")
+	// Start the server
+	log.Println("Server is running on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
-
-/// main - start pplicstion
-// handler - when you hit the endoint curl
