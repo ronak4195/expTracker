@@ -14,7 +14,7 @@ const RenderComponent = ({ component }) => {
       return (
         <button
           onClick={() => {
-            fetch(component.properties.onClick)
+            fetch(`http://localhost:8080${component.properties.onClick}`)
               .then((response) => response.json())
               .then((data) => alert(data.message))
               .catch((error) => console.error("Error:", error));
@@ -68,7 +68,7 @@ const App = () => {
 
   useEffect(() => {
     // Fetch UI data from the backend
-    fetch("/")
+    fetch("http://localhost:8080")
       .then((response) => response.json())
       .then((data) => setUiData(data))
       .catch((error) => console.error("Error fetching UI data:", error));
