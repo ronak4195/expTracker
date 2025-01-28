@@ -1,77 +1,88 @@
-package main
+import React, { useEffect, useState } from "react";
 
-import (
-	"encoding/json"
-	"log"
-	"net/http"
-)
+// Component to render UI based on the server response
+const RenderComponent = ({ component }) => {
+  switch (component.type) {
+    case "text":
+      return (
+        <div style={{ fontSize: component.properties.style === "header" ? "24px" : "16px" }}>
+          {component.properties.text}
+        </div>
+      );
 
-// UIComponent defines the structure of a UI component
-type UIComponent struct {
-	Type       string                 `json:"type"`       // Component type (e.g., "button", "text", "image")
-	Properties map[string]interface{} `json:"properties"` // Component properties (e.g., "text": "Click me")
-	Children   []UIComponent          `json:"children"`   // Nested components
-}
+    case "button":
+      return (
+        <button
+          onClick={() => {
+            fetch(component.properties.onClick)
+              .then((response) => response.json())
+              .then((data) => alert(data.message))
+              .catch((error) => console.error("Error:", error));
+          }}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: "#007BFF",
+            color: "#FFF",
+            border: "none",
+            borderRadius: "5px",
+            cursor: "pointer",
+          }}
+        >
+          {component.properties.text}
+        </button>
+      );
 
-// HomeHandler generates a UI layout dynamically
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	// Define the UI structure
-	ui := UIComponent{
-		Type: "container",
-		Properties: map[string]interface{}{
-			"direction": "vertical",
-			"padding":   16,
-		},
-		Children: []UIComponent{
-			{
-				Type: "text",
-				Properties: map[string]interface{}{
-					"text":  "Welcome to Server-Driven UI",
-					"style": "header",
-				},
-			},
-			{
-				Type: "button",
-				Properties: map[string]interface{}{
-					"text":    "Click Me",
-					"onClick": "/api/click", // API to handle button click
-				},
-			},
-			{
-				Type: "image",
-				Properties: map[string]interface{}{
-					"src":    "https://example.com/image.jpg",
-					"alt":    "Example Image",
-					"height": 200,
-				},
-			},
-		},
-	}
+    case "image":
+      return (
+        <img
+          src={component.properties.src}
+          alt={component.properties.alt}
+          height={component.properties.height}
+          style={{ margin: "20px 0" }}
+        />
+      );
 
-	// Respond with JSON
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(ui); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
+    case "container":
+      return (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: component.properties.direction === "vertical" ? "column" : "row",
+            padding: `${component.properties.padding}px`,
+          }}
+        >
+          {component.children.map((child, index) => (
+            <RenderComponent key={index} component={child} />
+          ))}
+        </div>
+      );
 
-// ClickHandler handles button click action
-func ClickHandler(w http.ResponseWriter, r *http.Request) {
-	response := map[string]string{
-		"message": "Button clicked!",
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
+    default:
+      return <div>Unknown component type: {component.type}</div>;
+  }
+};
 
-func main() {
-	// Set up routes
-	http.HandleFunc("/", HomeHandler)
-	http.HandleFunc("/api/click", ClickHandler)
+// Main App Component
+const App = () => {
+  const [uiData, setUiData] = useState(null);
 
-	// Start the server
-	log.Println("Server is running on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
+  useEffect(() => {
+    // Fetch UI data from the backend
+    fetch("/")
+      .then((response) => response.json())
+      .then((data) => setUiData(data))
+      .catch((error) => console.error("Error fetching UI data:", error));
+  }, []);
+
+  return (
+    <div style={{ fontFamily: "Arial, sans-serif", margin: "20px" }}>
+      {uiData ? (
+        <RenderComponent component={uiData} />
+      ) : (
+        <div>Loading UI...</div>
+      )}
+    </div>
+  );
+};
+
+export default App;
