@@ -1,65 +1,54 @@
 import React, { useEffect, useState } from "react";
+import axios from "axios";
 
-const fetchUI = async () => {
-  try {
-    const response = await fetch("http://localhost:8080/");
-    return response.json();
-  } catch (error) {
-    console.error("Error fetching UI:", error);
-    return null;
-  }
-};
+// Component to render UI components dynamically
+const UIComponentRenderer = ({ component }) => {
+  const { type, properties, children } = component;
 
-const handleClick = async (url) => {
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    alert(data.message); // Show response message
-  } catch (error) {
-    console.error("Error handling click:", error);
-  }
-};
-
-const renderComponent = (component) => {
-  switch (component.type) {
+  switch (type) {
     case "container":
       return (
         <div
           style={{
             display: "flex",
-            flexDirection: component.properties.direction || "column",
-            padding: component.properties.padding || 0,
+            flexDirection: properties.direction || "column",
+            padding: properties.padding || 0,
           }}
         >
-          {component.children &&
-            component.children.map((child, index) => (
-              <React.Fragment key={index}>
-                {renderComponent(child)}
-              </React.Fragment>
-            ))}
+          {children.map((child, index) => (
+            <UIComponentRenderer key={index} component={child} />
+          ))}
         </div>
       );
 
     case "text":
       return (
-        <h1 style={{ fontSize: component.properties.style === "header" ? "24px" : "16px" }}>
-          {component.properties.text}
+        <h1 style={properties.style === "header" ? { fontSize: "24px", fontWeight: "bold" } : {}}>
+          {properties.text}
         </h1>
       );
 
     case "button":
       return (
-        <button onClick={() => handleClick(component.properties.onClick)}>
-          {component.properties.text}
+        <button
+          onClick={() => {
+            if (properties.onClick) {
+              axios.get(properties.onClick).then((response) => {
+                alert(response.data.message);
+              });
+            }
+          }}
+        >
+          {properties.text}
         </button>
       );
 
     case "image":
       return (
         <img
-          src={component.properties.src}
-          alt={component.properties.alt}
-          height={component.properties.height}
+          src={properties.src}
+          alt={properties.alt}
+          style={{ height: properties.height || "auto" }}
         />
       );
 
@@ -68,16 +57,31 @@ const renderComponent = (component) => {
   }
 };
 
+// Main App Component
 const App = () => {
   const [uiData, setUiData] = useState(null);
 
+  // Fetch UI data from the Golang server
   useEffect(() => {
-    fetchUI().then((data) => setUiData(data));
+    axios
+      .get("http://localhost:8080/")
+      .then((response) => {
+        setUiData(response.data);
+      })
+      .catch((error) => {
+        console.error("Error fetching UI data:", error);
+      });
   }, []);
 
-  if (!uiData) return <p>Loading...</p>;
+  if (!uiData) {
+    return <div>Loading...</div>;
+  }
 
-  return <div>{renderComponent(uiData)}</div>;
+  return (
+    <div className="App">
+      <UIComponentRenderer component={uiData} />
+    </div>
+  );
 };
 
 export default App;
