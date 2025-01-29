@@ -1,87 +1,75 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+package main
 
-// Component to render UI components dynamically
-const UIComponentRenderer = ({ component }) => {
-  const { type, properties, children } = component;
+import (
+    "encoding/json"
+    "log"
+    "net/http"
+    "github.com/rs/cors"
+)
 
-  switch (type) {
-    case "container":
-      return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: properties.direction || "column",
-            padding: properties.padding || 0,
-          }}
-        >
-          {children.map((child, index) => (
-            <UIComponentRenderer key={index} component={child} />
-          ))}
-        </div>
-      );
+type UIComponent struct {
+    Type       string                 `json:"type"`
+    Properties map[string]interface{} `json:"properties"`
+    Children   []UIComponent          `json:"children"`
+}
 
-    case "text":
-      return (
-        <h1 style={properties.style === "header" ? { fontSize: "24px", fontWeight: "bold" } : {}}>
-          {properties.text}
-        </h1>
-      );
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+    ui := UIComponent{
+        Type: "container",
+        Properties: map[string]interface{}{
+            "direction": "vertical",
+            "padding":   16,
+        },
+        Children: []UIComponent{
+            {
+                Type: "text",
+                Properties: map[string]interface{}{
+                    "text":  "Welcome to Server-Driven UI",
+                    "style": "header",
+                },
+            },
+            {
+                Type: "button",
+                Properties: map[string]interface{}{
+                    "text":    "Click Me",
+                    "onClick": "/api/click",
+                },
+            },
+            {
+                Type: "image",
+                Properties: map[string]interface{}{
+                    "src":    "https://example.com/image.jpg",
+                    "alt":    "Example Image",
+                    "height": 200,
+                },
+            },
+        },
+    }
 
-    case "button":
-      return (
-        <button
-          onClick={() => {
-            if (properties.onClick) {
-              axios.get(properties.onClick).then((response) => {
-                alert(response.data.message);
-              });
-            }
-          }}
-        >
-          {properties.text}
-        </button>
-      );
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(ui)
+}
 
-    case "image":
-      return (
-        <img
-          src={properties.src}
-          alt={properties.alt}
-          style={{ height: properties.height || "auto" }}
-        />
-      );
+func ClickHandler(w http.ResponseWriter, r *http.Request) {
+    response := map[string]string{
+        "message": "Button clicked!",
+    }
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
 
-    default:
-      return null;
-  }
-};
+func main() {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/", HomeHandler)
+    mux.HandleFunc("/api/click", ClickHandler)
 
-// Main App Component
-const App = () => {
-  const [uiData, setUiData] = useState(null);
+    handler := cors.New(cors.Options{
+        AllowedOrigins:   []string{"http://localhost:3000"}, // Allow frontend
+        AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+        AllowedHeaders:   []string{"Content-Type"},
+        AllowCredentials: true,
+    }).Handler(mux)
 
-  // Fetch UI data from the Golang server
-  useEffect(() => {
-    axios
-      .get("http://localhost:8080/")
-      .then((response) => {
-        setUiData(response.data);
-      })
-      .catch((error) => {
-        console.error("Error fetching UI data:", error);
-      });
-  }, []);
-
-  if (!uiData) {
-    return <div>Loading...</div>;
-  }
-
-  return (
-    <div className="App">
-      <UIComponentRenderer component={uiData} />
-    </div>
-  );
-};
-
-export default App;
+    log.Println("Server is running on http://localhost:8080")
+    log.Fatal(http.ListenAndServe(":8080", handler))
+}
