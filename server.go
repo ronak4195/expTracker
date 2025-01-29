@@ -1,33 +1,55 @@
 import React, { useEffect, useState } from "react";
 
-// Component to render UI based on the server response
-const RenderComponent = ({ component }) => {
+const fetchUI = async () => {
+  try {
+    const response = await fetch("http://localhost:8080/");
+    return response.json();
+  } catch (error) {
+    console.error("Error fetching UI:", error);
+    return null;
+  }
+};
+
+const handleClick = async (url) => {
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    alert(data.message); // Show response message
+  } catch (error) {
+    console.error("Error handling click:", error);
+  }
+};
+
+const renderComponent = (component) => {
   switch (component.type) {
+    case "container":
+      return (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: component.properties.direction || "column",
+            padding: component.properties.padding || 0,
+          }}
+        >
+          {component.children &&
+            component.children.map((child, index) => (
+              <React.Fragment key={index}>
+                {renderComponent(child)}
+              </React.Fragment>
+            ))}
+        </div>
+      );
+
     case "text":
       return (
-        <div style={{ fontSize: component.properties.style === "header" ? "24px" : "16px" }}>
+        <h1 style={{ fontSize: component.properties.style === "header" ? "24px" : "16px" }}>
           {component.properties.text}
-        </div>
+        </h1>
       );
 
     case "button":
       return (
-        <button
-          onClick={() => {
-            fetch(`http://localhost:8080${component.properties.onClick}`)
-              .then((response) => response.json())
-              .then((data) => alert(data.message))
-              .catch((error) => console.error("Error:", error));
-          }}
-          style={{
-            padding: "10px 20px",
-            backgroundColor: "#007BFF",
-            color: "#FFF",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
-        >
+        <button onClick={() => handleClick(component.properties.onClick)}>
           {component.properties.text}
         </button>
       );
@@ -38,51 +60,24 @@ const RenderComponent = ({ component }) => {
           src={component.properties.src}
           alt={component.properties.alt}
           height={component.properties.height}
-          style={{ margin: "20px 0" }}
         />
       );
 
-    case "container":
-      return (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: component.properties.direction === "vertical" ? "column" : "row",
-            padding: `${component.properties.padding}px`,
-          }}
-        >
-          {component.children.map((child, index) => (
-            <RenderComponent key={index} component={child} />
-          ))}
-        </div>
-      );
-
     default:
-      return <div>Unknown component type: {component.type}</div>;
+      return null;
   }
 };
 
-// Main App Component
 const App = () => {
   const [uiData, setUiData] = useState(null);
 
   useEffect(() => {
-    // Fetch UI data from the backend
-    fetch("http://localhost:8080")
-      .then((response) => response.json())
-      .then((data) => setUiData(data))
-      .catch((error) => console.error("Error fetching UI data:", error));
+    fetchUI().then((data) => setUiData(data));
   }, []);
 
-  return (
-    <div style={{ fontFamily: "Arial, sans-serif", margin: "20px" }}>
-      {uiData ? (
-        <RenderComponent component={uiData} />
-      ) : (
-        <div>Loading UI...</div>
-      )}
-    </div>
-  );
+  if (!uiData) return <p>Loading...</p>;
+
+  return <div>{renderComponent(uiData)}</div>;
 };
 
 export default App;
